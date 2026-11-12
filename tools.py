@@ -1,30 +1,61 @@
-from langchain_community.tools import WikipediaQueryRun, DuckDuckGoSearchRun
+from langchain_community.tools import WikipediaQueryRun
 from langchain_community.utilities import WikipediaAPIWrapper
-from langchain.tools import Tool
+from langchain_core.tools import tool
+from ddgs import DDGS
 from datetime import datetime
 
-def save_to_txt(data: str, filename: str = "research_output.txt"):
+
+@tool
+def save_to_txt(data: str) -> str:
+    """Saves research data to a text file."""
+
+    filename = "research_output.txt"
     timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-    formatted_text = f"--- Research Output ---\nTimestamp: {timestamp}\n\n{data}\n\n"
+
+    formatted_text = (
+        f"--- Research Output ---\n"
+        f"Timestamp: {timestamp}\n\n"
+        f"{data}\n\n"
+    )
 
     with open(filename, "a", encoding="utf-8") as f:
         f.write(formatted_text)
-    
+
     return f"Data successfully saved to {filename}"
 
-save_tool = Tool(
-    name="save_text_to_file",
-    func=save_to_txt,
-    description="Saves structured research data to a text file.",
+
+save_tool = save_to_txt
+
+
+@tool
+def search_tool(query: str) -> str:
+    """Search the web for information."""
+
+    try:
+        results = DDGS().text(
+            query,
+            max_results=5
+        )
+
+        if not results:
+            return "No search results found."
+
+        return "\n\n".join(
+            f"Title: {result.get('title', '')}\n"
+            f"URL: {result.get('href', '')}\n"
+            f"Snippet: {result.get('body', '')}"
+            for result in results
+        )
+
+    except Exception as e:
+        return f"Search failed: {str(e)}"
+
+
+api_wrapper = WikipediaAPIWrapper(
+    top_k_results=1,
+    doc_content_chars_max=100
 )
 
-search = DuckDuckGoSearchRun()
-search_tool = Tool(
-    name="search",
-    func=search.run,
-    description="Search the web for information",
+wiki_tool = WikipediaQueryRun(
+    api_wrapper=api_wrapper
 )
-
-api_wrapper = WikipediaAPIWrapper(top_k_results=1, doc_content_chars_max=100)
-wiki_tool = WikipediaQueryRun(api_wrapper=api_wrapper)
-
